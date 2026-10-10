@@ -1,7 +1,8 @@
 import { identityRepository } from './identity.repository.js'
 import { hashPassword, verifyPassword } from '../../common/auth/password.js'
-import { UnauthorizedError, ConflictError, NotFoundError } from '../../common/errors/app-error.js'
+import { UnauthorizedError, ConflictError, NotFoundError, ValidationError } from '../../common/errors/app-error.js'
 import type { Role, AuthenticatedUser } from '../../common/auth/types.js'
+import { validateUserEmployeeLinkage } from '../../common/auth/policy.js'
 
 export const identityService = {
   async authenticate(email: string, plainTextPassword: string): Promise<AuthenticatedUser> {
@@ -55,6 +56,28 @@ export const identityService = {
       throw new ConflictError('A user with this email already exists.')
     }
 
+    // Validate employee linkage if provided
+    if (input.employeeId) {
+      const employee = await identityRepository.findEmployeeById(input.employeeId)
+      if (!employee) {
+        throw new NotFoundError('Linked employee record not found.')
+      }
+      if (employee.status !== 'ACTIVE') {
+        throw new ValidationError('Cannot link user account to an inactive employee.', {
+          employeeId: ['Employee must be active for user linkage.'],
+        })
+      }
+      const existingLink = await identityRepository.findByEmployeeId(input.employeeId)
+      if (existingLink) {
+        throw new ConflictError('This employee is already linked to another user account.')
+      }
+    }
+
+    const linkageCheck = validateUserEmployeeLinkage({ role: input.role, employeeId: input.employeeId })
+    if (!linkageCheck.valid && input.employeeId !== undefined) {
+      throw new ValidationError(linkageCheck.reason ?? 'Invalid employee linkage.')
+    }
+
     const passwordHash = await hashPassword(input.password)
     const user = await identityRepository.createUser({
       normalizedEmail: input.email,
@@ -97,6 +120,29 @@ export const identityService = {
     const existing = await identityRepository.findById(id)
     if (!existing) {
       throw new NotFoundError('User not found.')
+    }
+
+    if (input.employeeId) {
+      const employee = await identityRepository.findEmployeeById(input.employeeId)
+      if (!employee) {
+        throw new NotFoundError('Linked employee record not found.')
+      }
+      if (employee.status !== 'ACTIVE') {
+        throw new ValidationError('Cannot link user account to an inactive employee.', {
+          employeeId: ['Employee must be active for user linkage.'],
+        })
+      }
+      const existingLink = await identityRepository.findByEmployeeId(input.employeeId)
+      if (existingLink && existingLink.id !== id) {
+        throw new ConflictError('This employee is already linked to another user account.')
+      }
+    }
+
+    const targetRole = input.role ?? existing.role
+    const targetEmployeeId = input.employeeId !== undefined ? input.employeeId : existing.employeeId
+    const linkageCheck = validateUserEmployeeLinkage({ role: targetRole, employeeId: targetEmployeeId })
+    if (!linkageCheck.valid && input.employeeId !== undefined) {
+      throw new ValidationError(linkageCheck.reason ?? 'Invalid employee linkage.')
     }
 
     const user = await identityRepository.updateUser(id, {

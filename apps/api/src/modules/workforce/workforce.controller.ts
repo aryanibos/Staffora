@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { sendSuccess, sendList } from '../../common/http/response.js'
 import { workforceService } from './workforce.service.js'
+import { workforcePolicy } from './workforce.policy.js'
 
 export const workforceController = {
   async getDepartments(_req: Request, res: Response, next: NextFunction) {
@@ -63,6 +64,9 @@ export const workforceController = {
 
   async getEmployeeDetail(req: Request, res: Response, next: NextFunction) {
     try {
+      if (req.user) {
+        workforcePolicy.assertCanViewEmployee(req.user, req.params.id as string)
+      }
       const item = await workforceService.getEmployeeDetail(req.params.id as string)
       return sendSuccess(res, item)
     } catch (err) {

@@ -1,5 +1,15 @@
 /* eslint-disable @typescript-eslint/no-namespace */
-export type Role = 'ADMIN' | 'PROJECT_MANAGER' | 'RESOURCE_MANAGER' | 'EMPLOYEE'
+export const ROLES = {
+  ADMIN: 'ADMIN',
+  PROJECT_MANAGER: 'PROJECT_MANAGER',
+  RESOURCE_MANAGER: 'RESOURCE_MANAGER',
+  EMPLOYEE: 'EMPLOYEE',
+} as const
+
+export type Role = (typeof ROLES)[keyof typeof ROLES]
+
+export const ROLE_VALUES: readonly Role[] = Object.values(ROLES)
+
 
 export interface AuthenticatedUser {
   id: string

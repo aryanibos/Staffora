@@ -97,4 +97,16 @@ export const identityRepository = {
       },
     })
   },
+
+  findEmployeeById(employeeId: string) {
+    return prisma.employee.findUnique({
+      where: { id: employeeId },
+    })
+  },
+
+  findByEmployeeId(employeeId: string) {
+    return prisma.user.findUnique({
+      where: { employeeId },
+    })
+  },
 }
